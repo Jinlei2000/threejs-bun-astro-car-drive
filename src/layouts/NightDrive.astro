@@ -1,0 +1,319 @@
+---
+interface Props {
+  title: string
+}
+const { title } = Astro.props
+---
+
+<!-- NightDrive.astro --><!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Night Drive Simulation" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css"
+    />
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div class="controls">
+      Drive with arrow keys or WASD. Toggle headlights with L
+    </div>
+  </body>
+</html>
+
+<script>
+  import * as THREE from 'three'
+
+  const canvas = document.getElementById('canvas')
+  const scene = new THREE.Scene()
+
+  const carPosition = new THREE.Vector3()
+
+  const car = createCar()
+  scene.add(car)
+  car.scale.set(0.3, 0.3, 0.3) // Adjust the scale as needed
+
+  // Set up lights
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+  scene.add(ambientLight)
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1)
+  dirLight.position.set(200, 500, 300)
+  scene.add(dirLight)
+
+  // Set up camera
+  const aspectRatio = window.innerWidth / window.innerHeight
+  const cameraWidth = 150
+  const cameraHeight = cameraWidth / aspectRatio
+
+  const camera = new THREE.OrthographicCamera(
+    cameraWidth / -2,
+    cameraWidth / 2,
+    cameraHeight / 2,
+    cameraHeight / -2,
+    0,
+    1000,
+  )
+  camera.position.set(200, 200, 200)
+  camera.lookAt(0, 10, 0)
+
+  // Set up renderer
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,
+  })
+  renderer.setSize(window.innerWidth, window.innerHeight)
+  renderer.setClearColor(0x333333)
+  renderer.render(scene, camera)
+
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    const newAspectRatio = window.innerWidth / window.innerHeight
+    camera.left = -cameraWidth / 2
+    camera.right = cameraWidth / 2
+    camera.top = cameraWidth / (2 * newAspectRatio)
+    camera.bottom = -cameraWidth / (2 * newAspectRatio)
+    camera.updateProjectionMatrix()
+    renderer.setSize(window.innerWidth, window.innerHeight)
+  })
+
+  // Set up keyboard controls
+  const keyboard = {}
+
+  const onKeyDown = event => {
+    keyboard[event.code] = true
+  }
+
+  const onKeyUp = event => {
+    keyboard[event.code] = false
+  }
+
+  document.addEventListener('keydown', onKeyDown)
+  document.addEventListener('keyup', onKeyUp)
+
+  renderer.setAnimationLoop(() => {
+    handleCarMovement()
+
+    // // Move camera with the car
+    // car.getWorldPosition(carPosition)
+    // camera.position.x = carPosition.x + 200
+    // camera.position.z = carPosition.z + 200
+    // camera.lookAt(carPosition)
+
+    renderer.render(scene, camera)
+  })
+
+  document.body.appendChild(renderer.domElement)
+
+  function handleCarMovement() {
+    // Update car position and rotation based on keyboard input
+    const moveSpeed = 0.5
+    const rotationSpeed = 0.05
+
+    if (keyboard['ArrowUp'] || keyboard['KeyW']) {
+      // Move in the direction the car is pointing
+      const angle = car.rotation.y + Math.PI / 2
+      car.position.x += moveSpeed * Math.sin(angle)
+      car.position.z += moveSpeed * Math.cos(angle)
+
+      // Update car's front wheels' rotation only when moving forward
+      car.children[0].rotation.y -= rotationSpeed
+      car.children[1].rotation.y -= rotationSpeed
+    } else if (keyboard['ArrowDown'] || keyboard['KeyS']) {
+      // Move backward
+      const angle = car.rotation.y + Math.PI / 2
+      car.position.x -= moveSpeed * Math.sin(angle)
+      car.position.z -= moveSpeed * Math.cos(angle)
+
+      // Update car's front wheels' rotation only when moving backward
+      car.children[0].rotation.y += rotationSpeed
+      car.children[1].rotation.y += rotationSpeed
+    }
+
+    if (keyboard['ArrowLeft'] || keyboard['KeyA']) {
+      car.rotation.y += rotationSpeed // Turn left
+    }
+    if (keyboard['ArrowRight'] || keyboard['KeyD']) {
+      car.rotation.y -= rotationSpeed // Turn right
+    }
+  }
+
+  function createCar() {
+    const car = new THREE.Group()
+
+    // Create and add the back wheel
+    const backWheel = createWheels()
+    backWheel.position.y = 6
+    backWheel.position.x = -18
+    backWheel.rotation.x = (90 * Math.PI) / 180
+    car.add(backWheel)
+
+    // Create and add the front wheel
+    const frontWheel = createWheels()
+    frontWheel.position.y = 6
+    frontWheel.position.x = 18
+    frontWheel.rotation.x = (90 * Math.PI) / 180
+    car.add(frontWheel)
+
+    // Create and add the main body
+    const main = new THREE.Mesh(
+      new THREE.BoxGeometry(60, 15, 30),
+      new THREE.MeshLambertMaterial({ color: 0x19c37d }),
+    )
+    main.position.y = 12
+    car.add(main)
+
+    // Create back and front lights
+    const frontRightWhiteLights = createCarLights(0xffffff, [
+      [30, 12, 10],
+      [30, 12, -10],
+    ])
+
+    const backRedLights = createCarLights(0xff0000, [
+      [-30, 12, 10],
+      [-30, 12, -10],
+    ])
+    car.add(...frontRightWhiteLights, ...backRedLights)
+
+    // Create textures for the car
+    const carFrontTexture = getCarFrontTexture()
+    const carBackTexture = getCarFrontTexture()
+    const carRightSideTexture = getCarSideTexture()
+    const carLeftSideTexture = getCarSideTexture()
+    carLeftSideTexture.center = new THREE.Vector2(0.5, 0.5)
+    carLeftSideTexture.rotation = Math.PI
+    carLeftSideTexture.flipY = false
+
+    // Create and add the cabin with lights
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(33, 12, 24), [
+      new THREE.MeshLambertMaterial({ map: carFrontTexture }),
+      new THREE.MeshLambertMaterial({ map: carBackTexture }),
+      new THREE.MeshLambertMaterial({ color: 0xffffff }), // top
+      new THREE.MeshLambertMaterial({ color: 0xffffff }), // bottom
+      new THREE.MeshLambertMaterial({ map: carRightSideTexture }),
+      new THREE.MeshLambertMaterial({ map: carLeftSideTexture }),
+    ])
+
+    cabin.position.x = -6
+    cabin.position.y = 25.5
+    car.add(cabin)
+
+    return car
+  }
+
+  function createWheels() {
+    const geometry = new THREE.CylinderGeometry(6, 6, 33, 32)
+
+    // Create a canvas for the wheel texture
+    const canvas = document.createElement('canvas')
+    canvas.width = 128
+    canvas.height = 128
+    const context = canvas.getContext('2d')
+
+    // Draw a detailed pattern on the canvas
+    context.fillStyle = '#000000'
+    context.fillRect(0, 0, 128, 128)
+
+    // Draw longer spokes
+    context.beginPath()
+    context.strokeStyle = '#ffffff'
+    context.lineWidth = 9
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * 2 * Math.PI
+      const x = 64 + 45 * Math.cos(angle) // Adjust the length here
+      const y = 64 + 45 * Math.sin(angle) // Adjust the length here
+      context.moveTo(64, 64)
+      context.lineTo(x, y)
+    }
+    context.stroke()
+
+    // Create a texture from the canvas
+    const wheelTexture = new THREE.CanvasTexture(canvas)
+
+    const material = new THREE.MeshLambertMaterial({ map: wheelTexture })
+
+    const wheel = new THREE.Mesh(geometry, material)
+
+    return wheel
+  }
+
+  function createCarLights(color, positions) {
+    const lights = []
+
+    for (const position of positions) {
+      const lightMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(2, 2, 2, 32),
+        new THREE.MeshBasicMaterial({ color: color }),
+      )
+      lightMesh.position.set(position[0], position[1], position[2])
+      lights.push(lightMesh)
+    }
+
+    return lights
+  }
+
+  function getCarFrontTexture() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 32
+    const context = canvas.getContext('2d')
+
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, 64, 32)
+
+    context.fillStyle = '#666666'
+    context.fillRect(8, 8, 48, 24)
+
+    return new THREE.CanvasTexture(canvas)
+  }
+
+  function getCarSideTexture() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 128
+    canvas.height = 32
+    const context = canvas.getContext('2d')
+
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, 128, 32)
+
+    context.fillStyle = '#666666'
+    context.fillRect(10, 8, 38, 24)
+    context.fillRect(58, 8, 60, 24)
+
+    return new THREE.CanvasTexture(canvas)
+  }
+</script>
+
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #000;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 2em;
+    z-index: 10;
+    font-size: 10px;
+    color: #fff;
+    opacity: 0.6;
+  }
+</style>
