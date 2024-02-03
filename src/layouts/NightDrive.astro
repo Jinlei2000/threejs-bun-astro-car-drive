@@ -22,7 +22,7 @@ const { title } = Astro.props
   <body>
     <canvas id="canvas"></canvas>
     <div class="controls">
-      Drive with arrow keys or WASD. Toggle headlights with L
+      Drive with arrow keys or WASD and change background color with the space
     </div>
   </body>
 </html>
@@ -32,6 +32,9 @@ const { title } = Astro.props
 
   const canvas = document.getElementById('canvas')
   const scene = new THREE.Scene()
+
+  // change scene background
+  scene.background = new THREE.Color(0xd2d6ef)
 
   const carPosition = new THREE.Vector3()
 
@@ -84,11 +87,27 @@ const { title } = Astro.props
     renderer.setSize(window.innerWidth, window.innerHeight)
   })
 
+  // Function to generate a random color
+  function getRandomColor() {
+    const letters = '0123456789ABCDEF'
+    let color = '#'
+    for (let i = 0; i < 6; i++) {
+      color += letters[Math.floor(Math.random() * 16)]
+    }
+    return color
+  }
+
   // Set up keyboard controls
   const keyboard = {}
 
   const onKeyDown = event => {
     keyboard[event.code] = true
+
+    // Check if the space bar is pressed
+    if (keyboard['Space'] || keyboard['Spacebar']) {
+      // Change the background color to a random color
+      scene.background = new THREE.Color(getRandomColor())
+    }
   }
 
   const onKeyUp = event => {
@@ -314,6 +333,6 @@ const { title } = Astro.props
     z-index: 10;
     font-size: 10px;
     color: #fff;
-    opacity: 0.6;
+    opacity: 0.75;
   }
 </style>
